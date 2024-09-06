@@ -1,0 +1,62 @@
+.cooldown-modal-settings {
+    &.modal-dialog {
+        width: 600px;
+    }
+
+    .modal-body {
+        overflow: visible;
+        padding: 8px;
+    }
+
+    .rc-slider {
+        margin-top: 12px;
+        margin-right: 8px;
+    }
+
+    .rc-slider-disabled {
+        background-color: #ffffff00;
+
+        .rc-slider-track {
+            background-color: #7e7e7e;
+        }
+        .rc-slider-dot-active {
+            border-color: #7e7e7e;
+        }
+    }
+
+    .rc-slider-track {
+        background-color: #007aff;
+    }
+
+    .rc-slider-mark-text {
+        white-space: nowrap;
+    }
+
+    .rc-slider-handle {
+        border: 2px solid #1c58d9;
+        background-color: #007aff;
+    }
+
+    .rc-slider-handle-dragging {
+        border-color: #7b7b7ba6;
+        box-shadow:0 0 0 5px #007aff;
+
+        .rc-slider-handle:hover {
+            border-color: #7b7b7ba6;
+        }
+    }
+
+    .rc-slider-dot-active {
+        border-color: #007aff;
+    }
+
+    .btn {
+        margin-top: 12px;
+    }
+}
+
+.col-sm-cooldown-1 {
+    margin-bottom: 10px;
+    margin-left: 24px;
+    margin-right: 24px;
+}

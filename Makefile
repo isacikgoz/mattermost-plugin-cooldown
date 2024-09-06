@@ -2,6 +2,7 @@ GO ?= $(shell command -v go 2> /dev/null)
 NPM ?= $(shell command -v npm 2> /dev/null)
 CURL ?= $(shell command -v curl 2> /dev/null)
 MM_DEBUG ?=
+MANIFEST_FILE ?= plugin.json
 GOPATH ?= $(shell go env GOPATH)
 GO_TEST_FLAGS ?= -race
 GO_BUILD_FLAGS ?=
@@ -12,10 +13,6 @@ DEFAULT_GOARCH := $(shell go env GOARCH)
 
 export GO111MODULE=on
 
-# We need to export GOBIN to allow it to be set
-# for processes spawned from the Makefile
-export GOBIN ?= $(PWD)/bin
-
 # You can include assets this directory into the bundle. This can be e.g. used to include profile pictures.
 ASSETS_DIR ?= assets
 
@@ -25,6 +22,7 @@ default: all
 
 # Verify environment, and define PLUGIN_ID, PLUGIN_VERSION, HAS_SERVER and HAS_WEBAPP as needed.
 include build/setup.mk
+include build/legacy.mk
 
 BUNDLE_NAME ?= $(PLUGIN_ID)-$(PLUGIN_VERSION).tar.gz
 
@@ -38,7 +36,6 @@ ifneq ($(MM_DEBUG),)
 else
 	GO_BUILD_GCFLAGS =
 endif
-
 
 # ====================================================================================
 # Used for semver bumping
@@ -151,25 +148,9 @@ major-rc: ## to bump major release candidate version (semver)
 .PHONY: all
 all: check-style test dist
 
-## Ensures the plugin manifest is valid
-.PHONY: manifest-check
-manifest-check:
-	./build/bin/manifest check
-
-## Propagates plugin manifest information into the server/ and webapp/ folders.
-.PHONY: apply
-apply:
-	./build/bin/manifest apply
-
-## Install go tools
-install-go-tools:
-	@echo Installing go tools
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
-	$(GO) install gotest.tools/gotestsum@v1.7.0
-
 ## Runs eslint and golangci-lint
 .PHONY: check-style
-check-style: manifest-check apply webapp/node_modules install-go-tools
+check-style: webapp/node_modules
 	@echo Checking for style guide compliance
 
 ifneq ($(HAS_WEBAPP),)
@@ -177,13 +158,14 @@ ifneq ($(HAS_WEBAPP),)
 	cd webapp && npm run check-types
 endif
 
-# It's highly recommended to run go-vet first
-# to find potential compile errors that could introduce
-# weird reports at golangci-lint step
 ifneq ($(HAS_SERVER),)
+	@if ! [ -x "$$(command -v golangci-lint)" ]; then \
+		echo "golangci-lint is not installed. Please see https://github.com/golangci/golangci-lint#install for installation instructions."; \
+		exit 1; \
+	fi; \
+
 	@echo Running golangci-lint
-	$(GO) vet ./...
-	$(GOBIN)/golangci-lint run ./...
+	golangci-lint run ./...
 endif
 
 ## Builds the server, if it exists, for all supported architectures, unless MM_SERVICESETTINGS_ENABLEDEVELOPER is set.
@@ -229,7 +211,7 @@ endif
 bundle:
 	rm -rf dist/
 	mkdir -p dist/$(PLUGIN_ID)
-	./build/bin/manifest dist
+	cp $(MANIFEST_FILE) dist/$(PLUGIN_ID)/
 ifneq ($(wildcard $(ASSETS_DIR)/.),)
 	cp -r $(ASSETS_DIR) dist/$(PLUGIN_ID)/
 endif
@@ -244,13 +226,13 @@ ifneq ($(HAS_WEBAPP),)
 	mkdir -p dist/$(PLUGIN_ID)/webapp
 	cp -r webapp/dist dist/$(PLUGIN_ID)/webapp/
 endif
-	cd dist && tar -cvzf $(BUNDLE_NAME) $(PLUGIN_ID)
+	cd dist && COPYFILE_DISABLE=1 tar -cvzf $(BUNDLE_NAME) $(PLUGIN_ID)
 
 	@echo plugin built at: dist/$(BUNDLE_NAME)
 
 ## Builds and bundles the plugin.
 .PHONY: dist
-dist: apply server webapp bundle
+dist:	server webapp bundle
 
 ## Builds and installs the plugin to a server.
 .PHONY: deploy
@@ -259,7 +241,7 @@ deploy: dist
 
 ## Builds and installs the plugin to a server, updating the webapp automatically when changed.
 .PHONY: watch
-watch: apply server bundle
+watch: server bundle
 ifeq ($(MM_DEBUG),)
 	cd webapp && $(NPM) run build:watch
 else
@@ -313,20 +295,9 @@ detach: setup-attach
 
 ## Runs any lints and unit tests defined for the server and webapp, if they exist.
 .PHONY: test
-test: apply webapp/node_modules install-go-tools
+test: webapp/node_modules
 ifneq ($(HAS_SERVER),)
-	$(GOBIN)/gotestsum -- -v ./...
-endif
-ifneq ($(HAS_WEBAPP),)
-	cd webapp && $(NPM) run test;
-endif
-
-## Runs any lints and unit tests defined for the server and webapp, if they exist, optimized
-## for a CI environment.
-.PHONY: test-ci
-test-ci: apply webapp/node_modules install-go-tools
-ifneq ($(HAS_SERVER),)
-	$(GOBIN)/gotestsum --format standard-verbose --junitfile report.xml -- ./...
+	$(GO) test -v $(GO_TEST_FLAGS) ./server/...
 endif
 ifneq ($(HAS_WEBAPP),)
 	cd webapp && $(NPM) run test;
@@ -334,7 +305,7 @@ endif
 
 ## Creates a coverage report for the server code.
 .PHONY: coverage
-coverage: apply webapp/node_modules
+coverage: webapp/node_modules
 ifneq ($(HAS_SERVER),)
 	$(GO) test $(GO_TEST_FLAGS) -coverprofile=server/coverage.txt ./server/...
 	$(GO) tool cover -html=server/coverage.txt
@@ -390,14 +361,6 @@ ifneq ($(HAS_WEBAPP),)
 	rm -fr webapp/node_modules
 endif
 	rm -fr build/bin/
-
-.PHONY: logs
-logs:
-	./build/bin/pluginctl logs $(PLUGIN_ID)
-
-.PHONY: logs-watch
-logs-watch:
-	./build/bin/pluginctl logs-watch $(PLUGIN_ID)
 
 # Help documentation à la https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 help:
