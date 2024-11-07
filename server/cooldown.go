@@ -33,14 +33,12 @@ func (p *Plugin) SetCooldown(ctx context.Context, channelID string, options Cool
 		return nil
 	}
 
-	p.API.LogInfo("4")
 	appErr := p.API.KVSet(channelID, b)
 	if appErr != nil {
 		return appErr
 	}
 	p.cache[channelID] = &options
 
-	p.API.LogInfo("5")
 	return nil
 }
 

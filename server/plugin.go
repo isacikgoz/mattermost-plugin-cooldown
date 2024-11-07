@@ -100,7 +100,7 @@ func (p *Plugin) OnDeactivate() error {
 func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*model.Post, string) {
 	opts, ok := p.cache[post.ChannelId]
 	if !ok {
-		p.API.LogInfo("Channel not found in cache", "channel_id", post.ChannelId)
+		p.API.LogDebug("Channel not found in cache", "channel_id", post.ChannelId)
 		return post, ""
 	}
 
@@ -125,7 +125,6 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		return nil, fmt.Sprintf("error: posts_tosql: %s", err)
 	}
 
-	p.API.LogInfo("query", "query", queryString, "args", args)
 	var res int
 	err = p.db.QueryRow(queryString, args...).Scan(&res)
 	if err != nil {
